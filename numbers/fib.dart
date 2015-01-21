@@ -1,3 +1,6 @@
+int fib(int n) =>
+    n == 0 || n == 1 ? n : fib(n - 1) + fib(n - 2);
+
 int fibSafe(int n) {
   if (n == 0 || n == 1) return n;
  
