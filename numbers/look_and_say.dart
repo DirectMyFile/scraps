@@ -28,3 +28,5 @@ int lookAndSay(int a) {
   
   return int.parse(n.join());
 }
+
+List<int> digits(int input) => new List<int>.generate(input.toString().length, (i) => int.parse(input.toString()[i]));
