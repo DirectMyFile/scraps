@@ -10,4 +10,8 @@ String toPigLatin(String input) {
   }).toList().join(" ");
 }
 
+String firstConsonant(String word) => new List.generate(word.length, (i) {
+  return word[i];
+}, growable: true).firstWhere((String it) => !VOWELS.contains(it.toLowerCase()), orElse: () => null);
+
 const List<String> VOWELS = const ["a", "e", "i", "o", "u"];
