@@ -24,23 +24,23 @@ class WorkerPool {
   
   WorkerPool(this.sockets);
   
-  Future waitForAll() {
+  Future waitFor() {
     return Future.wait(sockets.map((it) => it.waitFor()).toList());
   }
   
-  Future stopAll() {
+  Future stop() {
     return Future.wait(sockets.map((it) => it.stop()).toList());
   }
   
-  Future pingAll() {
+  Future ping() {
     return Future.wait(sockets.map((it) => it.ping()).toList());
   }
   
-  void sendAll(dynamic data) {
+  void send(dynamic data) {
     forEach((socket) => socket.send(data));
   }
   
-  void listenAll(void handler(int worker, event)) {
+  void listen(void handler(int worker, event)) {
     var i = 0;
     for (var worker in sockets) {
       var id = i;
@@ -51,7 +51,7 @@ class WorkerPool {
     }
   }
   
-  Future<WorkerPool> initAll() => Future.wait(sockets.map((it) => it.init()).toList()).then((_) => this);
+  Future<WorkerPool> init() => Future.wait(sockets.map((it) => it.init()).toList()).then((_) => this);
   
   void forEach(void handler(WorkerSocket socket)) {
     sockets.forEach(handler);
@@ -317,9 +317,9 @@ testWorker(Worker worker) async {
 }
 
 main() async {
-  var pool = await createWorkerPool(4, testWorker).initAll();
+  var pool = await createWorkerPool(20, testWorker).init();
   
-  pool.sendAll("Hello World");
+  pool.send("Hello World");
   
-  await pool.stopAll();
+  await pool.stop();
 }
