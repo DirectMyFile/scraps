@@ -1,8 +1,31 @@
+import "dart:async";
 import "dart:io";
 import "dart:isolate";
  
-const int workers = 2;
+const int workers = 3;
 const UNSPECIFIED = const Object();
+const String LISTING = """
+<!DOCTYPE html>
+<html>
+  <title>Directory listing for {path}</title>
+  <body>
+    <h2>Directory listing for {path}</h2>
+    <hr>
+      <ul>{files}</ul>
+    <hr>
+  </body>
+</html>
+""";
+
+const Map<String, String> MIMES = const {
+  ".html": "text/html",
+  ".txt": "text/plain",
+  ".css": "text/css",
+  ".js": "application/js",
+  ".dart": "application/dart",
+  ".json": "application/json",
+  ".xml": "text/xml"
+};
 
 class ServerWorker {
   final int id;
@@ -16,85 +39,11 @@ class ServerWorker {
   init() async {
     recv = new ReceivePort();
     receiver = recv.asBroadcastStream();
-    sleep(new Duration(milliseconds: 500));
+    sleep(new Duration(milliseconds: 2));
     port.send(recv.sendPort);
   }
   
-  get(String key) async {
-    send(new DatabaseRequest(key));
-    
-    return (await receiver
-        .where((it) => it is DatabaseResponse && it.isGetResponse && it.key == key)
-        .first).value;
-  }
-  
-  set(String key, value) async {
-    send(new DatabaseRequest(key, value));
-    
-    return (await receiver
-        .where((it) => it is DatabaseResponse && it.isSetResponse && it.key == key)
-        .first).value;
-  }
-  
   void send(value) => port.send(new WorkerMessage(id, value));
-}
-
-worker(ServerWorker w) async {
-  await w.init();
-  
-  var server = await HttpServer.bind("0.0.0.0", 8080, shared: true);
-  
-  await for (var request in server) {
-    print("[Worker ${w.id}] ${request.method} ${request.uri.path} (${request.connectionInfo.remoteAddress.address})");
-    
-    if (request.uri.path == "/") {
-      var number = await w.get("test");
-      number++;
-      await w.set("test", number);
-      request.response
-        ..writeln("Worker ${w.id} says hello! (${number})")
-        ..close();
-    } else {
-      request.response
-        ..statusCode = 404
-        ..writeln("Not Found")
-        ..close();
-    }
-  }
-}
-
-main() async {
-  var recv = new ReceivePort();
-  var receiver = recv.asBroadcastStream();
-  var senders = <int, SendPort>{};
-  
-  for (var i = 1; i <= workers; i++) {
-    var isolate = await Isolate.spawn(worker, new ServerWorker(i, recv.sendPort));
-    print("[Worker ${i}] Spawned.");
-    senders[i] = await receiver.first;
-  }
-  
-  runDatabase(receiver, senders);
-}
-
-class DatabaseRequest {
-  final String key;
-  final dynamic value;
-  
-  DatabaseRequest(this.key, [this.value = UNSPECIFIED]);
-  
-  bool get isGetRequest => value == UNSPECIFIED;
-  bool get isSetRequest => value != UNSPECIFIED;
-}
-
-class DatabaseResponse {
-  final String key;
-  final dynamic value;
-  
-  DatabaseResponse(this.key, [this.value = UNSPECIFIED]);
-  
-  bool get isGetResponse => value != UNSPECIFIED;
-  bool get isSetResponse => value == UNSPECIFIED;
 }
 
 class WorkerMessage {
@@ -104,22 +53,78 @@ class WorkerMessage {
   WorkerMessage(this.id, this.value);
 }
 
-runDatabase(ReceivePort receiver, Map<int, SendPort> senders) async {
-  var storage = <String, dynamic>{
-    "test": 1
-  };
+runWorker(ServerWorker worker) async {
+  await worker.init();
   
-  await for (var m in receiver) {
-    var port = senders[m.id];
-    var message = m.value;
+  var server = await HttpServer.bind("0.0.0.0", 8080, shared: true);
+  
+  await for (var request in server) {
+    print("[Worker ${worker.id}] ${request.method} ${request.uri.path} (${request.connectionInfo.remoteAddress.address})");
     
-    if (message is DatabaseRequest) {
-      if (message.isGetRequest) {
-        port.send(new DatabaseResponse(message.key, storage[message.key])); 
-      } else if (message.isSetRequest) {
-        storage[message.key] = message.value;
-        port.send(new DatabaseResponse(message.key));
+    var path = request.uri.path;
+    
+    if (path == "/") {
+      path = "/index.html";
+    }
+    
+    path = path.substring(1);
+    
+    var file = new File(path).absolute;
+    var dir = new Directory(path).absolute;
+    
+    if (await dir.exists() || (file.path.endsWith("/index.html") && !(await file.exists()))) {
+      dir = new Directory(dir.path.replaceAll("index.html", ""));
+      
+      path = path.replaceAll("index.html", "/");
+      
+      if (path[0] != "/") {
+        path = "/" + path;
+      }
+      
+      var list = LISTING.replaceAll("{path}", path).replaceAll("{files}", (await dir.list().toList()).map((entity) {
+        var m = entity.path.replaceAll(dir.path, "");
+        
+        if (entity is Directory) {
+          m += "/";
+        }
+        
+        var out = '<li><a href="${m}">${m}</a></li>';
+        
+        return out;
+      }).join());
+      request.response.headers.contentType = ContentType.HTML;
+      request.response
+        ..writeln(list)
+        ..close();
+      continue;
+    }
+    
+    if (!(await file.exists())) {
+      request.response
+              ..statusCode = 404
+              ..writeln("Not Found")
+              ..close();
+      continue;
+    }
+    
+    for (var ext in MIMES.keys) {
+      if (file.path.endsWith(ext)) {
+        request.response.headers.contentType = ContentType.parse(MIMES[ext]);
       }
     }
+    
+    file.openRead().pipe(request.response).then((_) => request.response.close());
+  }
+}
+
+main() async {
+  var recv = new ReceivePort();
+  var receiver = recv.asBroadcastStream();
+  var senders = <int, SendPort>{};
+  
+  for (var i = 1; i <= workers; i++) {
+    await Isolate.spawn(runWorker, new ServerWorker(i, recv.sendPort));
+    print("[Worker ${i}] Spawned.");
+    senders[i] = await receiver.first;
   }
 }
