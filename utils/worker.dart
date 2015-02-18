@@ -51,6 +51,8 @@ class WorkerPool {
     }
   }
   
+  Future<WorkerPool> initAll() => Future.wait(sockets.map((it) => it.init()).toList()).then((_) => this);
+  
   void forEach(void handler(WorkerSocket socket)) {
     sockets.forEach(handler);
   }
@@ -129,6 +131,38 @@ class _WorkerStopped {}
 class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
   final ReceivePort receiver;
   SendPort _sendPort;
+  
+  WorkerSocket.master(this.receiver) : isWorker = false {
+    receiver.listen((msg) {
+      if (msg is _WorkerSendPort) {
+        _sendPort = msg.port;
+        _readyCompleter.complete();
+      } else if (msg is _WorkerData) {
+        _controller.add(msg.data);
+      } else if (msg is _WorkerError) {
+        _controller.addError(msg.errorEvent, msg.stackTrace);
+      } else if (msg is _WorkerPing) {
+        _sendPort.send(new _WorkerPong(msg.id));
+      } else if (msg is _WorkerPong) {
+        if (_pings.containsKey(msg.id)) {
+          _pings[msg.id].complete();
+          _pings.remove(msg.id);
+        }
+      } else if (msg is _WorkerRequest) {
+        _handleRequest(msg);
+      } else if (msg is _WorkerResponse) {
+        if (_responseHandlers.containsKey(msg.id)) {
+          _responseHandlers.remove(msg.id).complete(msg.value);
+        } else {
+          throw new Exception("Invalid Request ID: ${msg.id}");
+        }
+      } else if (msg is _WorkerStopped) {
+        _stopCompleter.complete();
+      } else {
+        throw new Exception("Unknown message: ${msg}");
+      }
+    });
+  }
 
   WorkerSocket.worker(SendPort port)
       : _sendPort = port,
@@ -173,11 +207,13 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
 
   Future waitFor() {
     if (isWorker) {
-      throw new Future.value();
+      return new Future.value();
     } else {
       return _readyCompleter.future;
     }
   }
+  
+  Future<WorkerSocket> init() => waitFor().then((_) => this);
   
   void addMethod(String name, Producer producer) {
     _requestHandlers[name] = producer;
@@ -209,30 +245,6 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
   Map<String, Producer> _requestHandlers = {};
 
   Completer _readyCompleter = new Completer();
-
-  WorkerSocket.master(this.receiver) : isWorker = false {
-    receiver.listen((msg) {
-      if (msg is _WorkerSendPort) {
-        _sendPort = msg.port;
-        _readyCompleter.complete();
-      } else if (msg is _WorkerData) {
-        _controller.add(msg.data);
-      } else if (msg is _WorkerError) {
-        _controller.addError(msg.errorEvent, msg.stackTrace);
-      } else if (msg is _WorkerPing) {
-        _sendPort.send(new _WorkerPong(msg.id));
-      } else if (msg is _WorkerPong) {
-        if (_pings.containsKey(msg.id)) {
-          _pings[msg.id].complete();
-          _pings.remove(msg.id);
-        }
-      } else if (msg is _WorkerStopped) {
-        _stopCompleter.complete();
-      } else {
-        throw new Exception("Unknown message: ${msg}");
-      }
-    });
-  }
 
   int _pingId = 0;
 
@@ -294,4 +306,20 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
   }
 
   StreamController _controller = new StreamController.broadcast();
+}
+
+testWorker(Worker worker) async {
+  var socket = await worker.createSocket().init();
+  
+  await for (var e in socket) {
+    print(e);
+  }
+}
+
+main() async {
+  var pool = await createWorkerPool(4, testWorker).initAll();
+  
+  pool.sendAll("Hello World");
+  
+  await pool.stopAll();
 }
