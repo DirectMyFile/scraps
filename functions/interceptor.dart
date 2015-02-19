@@ -22,7 +22,7 @@ class Interceptor {
   }
 }
 
-Interceptor createMap = new Interceptor((positional, named) {
+dynamic createMap = new Interceptor((positional, named) {
   if (positional.isNotEmpty) {
     throw new ArgumentError("ERROR: Positional Arguments are not supported.");
   }

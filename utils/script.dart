@@ -59,14 +59,14 @@ int randomInteger([int max = 100]) {
   return _random.nextInt(max);
 }
 
-File file(String path) => new File(path);
-Directory folder(String path) => new Directory(path);
+File file(path) => path is File ? path : new File(path);
+Directory folder(path) => path is Directory ? path : new Directory(path);
 
 void cd(String path) {
   Directory.current = folder(path);
 }
 
-void pushd(String path) {
+void pushd(path) {
   _directoryStack.add(Directory.current);
   cd(path);
 }
@@ -75,22 +75,23 @@ void popd() {
   if (_directoryStack.isEmpty) {
     throw new Exception("Directory Stack Empty");
   }
+  
   cd(_directoryStack.removeAt(_directoryStack.length - 1).path);
 }
 
 String stripNewlines(String input) => input.replaceAll("\n", "");
 String cwd() => Directory.current.path;
-String readFile(String path) => file(path).readAsStringSync();
-Directory mkdir(String path, {bool recursive: false}) {
+String readFile(path) => file(path).readAsStringSync();
+Directory mkdir(path, {bool recursive: false}) {
   var dir = folder(path);
   dir.createSync(recursive: recursive);
   return dir;
 }
 
-void rm(String path, {bool recursive: false}) =>
+void rm(path, {bool recursive: false}) =>
   recursive ? folder(path).deleteSync(recursive: true) : file(path).deleteSync();
 
-FileStat fileStats(String path) {
+FileStat fileStats(path) {
   return file(path).statSync();
 }
 
@@ -116,11 +117,11 @@ bool yesOrNo(String msg) {
   return ans;
 }
 
-List<FileSystemEntity> ls(String path, {bool recursive: false}) =>
+List<FileSystemEntity> ls(path, {bool recursive: false}) =>
     folder(path).listSync(recursive: recursive);
 
-void writeFile(String path, {bool append: false}) {
-  file(path).writeAsStringSync(path, mode: append ? FileMode.APPEND : FileMode.WRITE);
+void writeFile(path, out, {bool append: false}) {
+  file(path).writeAsStringSync(out, mode: append ? FileMode.APPEND : FileMode.WRITE);
 }
  
 String encodeJSON(dynamic input, {bool pretty: true}) {
@@ -143,11 +144,10 @@ dynamic decodeJSON(String input) {
   return out;
 }
 
-dynamic readJSON(String path) => decodeJSON(readFile(path));
-void writeJSON(String path, dynamic json, {bool pretty: true, bool append: false}) =>
-    writeFile(encodeJSON(json, pretty: pretty), append: append);
-    
-    
+dynamic readJSON(path) => decodeJSON(readFile(path));
+void writeJSON(path, dynamic json, {bool pretty: true, bool append: false}) =>
+    writeFile(path, encodeJSON(json, pretty: pretty), append: append);
+
 SimpleMap env = new SimpleMap(Platform.environment);
 List<String> executablePaths = env.PATH.split(Platform.isWindows ? ";" : ":");
 
