@@ -1,5 +1,5 @@
 import "dart:io";
-import "../script.dart";
+import "../utils/script.dart";
 
 void main(List<String> args) {
   if (args.length != 1) {
