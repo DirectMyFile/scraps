@@ -104,6 +104,7 @@ class Worker {
   Worker(this.port);
 
   WorkerSocket createSocket() => new WorkerSocket.worker(port);
+  Future<WorkerSocket> init() => await createSocket().init();
 }
 
 class _WorkerSendPort {
@@ -306,20 +307,4 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
   }
 
   StreamController _controller = new StreamController.broadcast();
-}
-
-testWorker(Worker worker) async {
-  var socket = await worker.createSocket().init();
-  
-  await for (var e in socket) {
-    print(e);
-  }
-}
-
-main() async {
-  var pool = await createWorkerPool(20, testWorker).init();
-  
-  pool.send("Hello World");
-  
-  await pool.stop();
 }
