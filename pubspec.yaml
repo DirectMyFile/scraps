@@ -1,0 +1,4 @@
+name: scraps
+description: Random Code
+dependencies:
+  image: 1.1.24

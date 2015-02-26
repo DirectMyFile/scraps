@@ -13,7 +13,7 @@ class CharacterReader {
   final String input;
   int _pos = -1;
   
-  InputReader(this.input);
+  CharacterReader(this.input);
   
   String next() {
     _pos++;
