@@ -4,3 +4,4 @@ out.jpg
 packages
 .pub
 pubspec.lock
+.idea/

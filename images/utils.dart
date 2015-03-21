@@ -1,3 +1,4 @@
+import "dart:async";
 import "dart:io";
 import "package:image/image.dart" as img;
 
@@ -13,12 +14,12 @@ Future<List<int>> readUrl(String url) async {
   return bytes;
 }
 
-Future<Image> fetchImage(String url) async {
+Future<img.Image> fetchImage(String url) async {
   var bytes = await readUrl(url);
   return img.decodeImage(bytes);
 }
 
-Future<File> saveImage(String path, Image image) async {
+Future<File> saveImage(String path, img.Image image) async {
   var file = new File(path);
   if (!await file.exists()) await file.create(recursive: true);
   await file.writeAsBytes(img.encodeNamedImage(image, path.split(Platform.pathSeparator).last));
