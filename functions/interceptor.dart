@@ -37,10 +37,10 @@ dynamic map = new Interceptor((positional, named) {
 });
 
 void main() {
-  print(
-    map(
-      a: "Hello",
-      b: "World"
-    )
+  var m = map(
+    a: "Hello",
+    b: "World"
   );
+
+  print(m);
 }
