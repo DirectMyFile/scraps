@@ -3,3 +3,4 @@ description: Random Code
 dependencies:
   image: 1.1.24
   http: any
+  analyzer: ">=0.24.0 <0.25.0"
