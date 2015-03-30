@@ -61,7 +61,7 @@ runWorker(ServerWorker worker) async {
 
   await for (var request in server) {
     print("[Worker ${worker.id}] ${request.method} ${request.uri.path} (${request.connectionInfo.remoteAddress.address})");
-    
+
     await serveFile(request, request.response);
   }
 }
@@ -78,15 +78,31 @@ main() async {
   }
 }
 
+Future sendError(HttpResponse response, int code, String message) {
+  return (
+    response
+      ..statusCode = code
+      ..writeln(message)
+  ).close();
+}
+
+Future send(HttpResponse response, ContentType type, String content) {
+  return (
+    response
+    ..headers.contentType = type
+    ..writeln(content)
+  ).close();
+}
+
 serveFile(HttpRequest request, HttpResponse response) async {
   var path = request.uri.path;
 
   var mpath = path == "/" ? "." : path.substring(1);
   var type = await FileSystemEntity.type(mpath);
-  
+
   if (type == FileSystemEntityType.FILE) {
     var file = new File(mpath);
-    
+
     for (var ext in MIMES.keys) {
       if (file.path.endsWith(ext)) {
         response.headers.contentType = ContentType.parse(MIMES[ext]);
@@ -98,66 +114,51 @@ serveFile(HttpRequest request, HttpResponse response) async {
   } else if (type == FileSystemEntityType.DIRECTORY) {
     var query = request.uri.queryParameters;
     var format = query.containsKey("format") ? query["format"].toLowerCase() : "html";
-    
+
     if (format == "html") {
       var list = await generateDirectoryList(request.uri.path);
 
-      response
-        ..headers.contentType = ContentType.HTML
-        ..writeln(list)
-        ..close();
+      await send(response, ContentType.HTML, list);
     } else if (format == "json") {
       var list = await generateDirectoryListJSON(request.uri.path);
 
-      response
-        ..headers.contentType = ContentType.JSON
-        ..writeln(list)
-        ..close();
+      await send(response, ContentType.JSON, list);
     } else {
-      response
-        ..statusCode = 400
-        ..writeln("Invalid Response Format: ${format}")
-        ..close();
+      await sendError(response, 400, "Invalid Response Format: ${format}");
     }
   } else if (type == FileSystemEntityType.NOT_FOUND) {
-    response
-      ..statusCode = 404
-      ..writeln("Not Found")
-      ..close();
+    await sendError(response, 404, "Not Found");
   } else {
-    response
-      ..statusCode = 500
-      ..writeln("Unknown File System Entity Type")
-      ..close();
+    await sendError(response, 500, "Unknown File System Entity Type");
   }
 }
 
 Future<String> generateDirectoryList(String path) async {
   var relative = path.substring(1);
   var dir = new Directory(relative).absolute;
-  
+
   var children = dir.list();
   var buff = new StringBuffer();
   var out = LISTING;
-  
+
   void addEntry(String entryPath) {
     buff.writeln('<li><a href="${entryPath}">${entryPath}</a></li>');
   }
-  
+
   if (path != "/") {
     addEntry("../");
   }
-  
+
   await for (var child in children) {
     var p = child.path.replaceAll(dir.path, "");
-    
+
     if (child is Directory) {
       p += "/";
     }
-    
+
     addEntry(p);
   }
-  
+
   return out.replaceAll("{path}", path).replaceAll("{files}", buff.toString());
 }
 
@@ -168,7 +169,7 @@ Future<String> generateDirectoryListJSON(String path) async {
   var dir = new Directory(relative).absolute;
   var children = await dir.list().asyncMap((it) async {
     var stat = await it.stat();
-    
+
     return {
       "name": it.path.replaceAll(dir.path, ""),
       "type": it is Directory ? "directory" : "file",
