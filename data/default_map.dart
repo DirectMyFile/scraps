@@ -1,41 +1,23 @@
-import "dart:collection";
+import "decorators.dart";
 
 typedef V DefaultCreator<K, V>(K key);
 
-class DefaultMap<K, V> extends MapBase<K, V> {
-  final Map<K, V> _map;
+/// A Map which can lazily create mappings on access.
+class DefaultMap<K, V> extends MapDecorator<K, V> {
   final DefaultCreator<K, V> _createDefault;
 
-  DefaultMap._(this._map, this._createDefault);
+  DefaultMap._(Map<K, V> map, this._createDefault) : super(map);
 
   DefaultMap(DefaultCreator<K, V> creator) : this._(<K, V>{}, creator);
   DefaultMap.wrap(Map<K, V> map, DefaultCreator<K, V> creator) : this._(map, creator);
 
   @override
   V operator [](K key) {
-    if (!_map.containsKey(key)) {
-      return _map[key] = _createDefault(key);
+    if (!containsKey(key)) {
+      return super[key] = _createDefault(key);
     } else {
-      return _map[key];
+      return super[key];
     }
-  }
-
-  @override
-  operator []=(K key, V value) {
-    return _map[key] = value;
-  }
-
-  @override
-  void clear() {
-    _map.clear();
-  }
-
-  @override
-  Iterable get keys => _map.keys;
-
-  @override
-  V remove(K key) {
-    return _map.remove(key);
   }
 }
 
