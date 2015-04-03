@@ -1,3 +1,5 @@
+import "dart:io";
+
 import "package:analyzer/src/generated/source.dart";
 import "package:analyzer/src/generated/parser.dart";
 import "package:analyzer/src/string_source.dart";
@@ -6,16 +8,19 @@ import "package:analyzer/src/generated/ast.dart";
 import "package:analyzer/src/error.dart";
 import "package:analyzer/src/generated/error.dart";
 
-void main() {
-  var cu = parseCompilationUnit("""
-  void main() {
-    print("Hi" ?? "Google");
+void main(List<String> args) {
+  if (args.isEmpty) {
+    print("Usage: null_operators <files>");
+    exit(1);
   }
-  """);
 
-  cu = new NullOperatorVisitor().visitCompilationUnit(cu);
+  for (var path in args) {
+    var file = new File(path);
+    var cu = parseCompilationUnit(file.readAsStringSync());
 
-  print(cu.toSource());
+    cu = new NullOperatorVisitor().visitCompilationUnit(cu);
+    file.writeAsStringSync(cu.toSource());
+  }
 }
 
 class NullOperatorVisitor extends AstCloner {
