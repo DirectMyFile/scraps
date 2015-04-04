@@ -12,6 +12,10 @@ void rewriteImports(CompilationUnit cu, String rewrite(String uri)) {
 
 const String INPUT = """
 import "github:DirectMyFile/scraps/tools/which.dart" as which;
+
+void main() {
+  which.main(["dart"]);
+}
 """;
 
 void main() {
