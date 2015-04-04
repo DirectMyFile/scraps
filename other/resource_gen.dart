@@ -3,10 +3,10 @@ import "dart:io";
 String generate(Map<String, String> resources) {
   var c = "const Map<String, String> resources = const {";
   if (resources.isNotEmpty) {
-    c += "\n  ";
+    c += "\n";
   }
   c += resources.keys.map((String name) {
-    return '"${name}": r"""${resources[name]}"""';
+    return '  "${name}": r"""${resources[name]}"""';
   }).join(",\n");
   if (resources.isNotEmpty) {
     c += "\n";
