@@ -1,4 +1,15 @@
-range(int start, int end, {bool inclusive: true, int step: 1}) async* {
+import "dart:async";
+
+Stream<int> range(int start, int end, {bool inclusive: true, int step: 1}) async* {
+  var i = start + (inclusive ? 0 : step);
+
+  while (inclusive ? i <= end : i < end) {
+    yield i;
+    i += step;
+  }
+}
+
+Iterable<int> rangeSync(int start, int end, {bool inclusive: true, int step: 1}) sync* {
   var i = start + (inclusive ? 0 : step);
 
   while (inclusive ? i <= end : i < end) {

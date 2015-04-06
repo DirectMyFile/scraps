@@ -21,25 +21,25 @@ WorkerPool createWorkerPool(int count, WorkerFunction function) {
 
 class WorkerPool {
   final List<WorkerSocket> sockets;
-  
+
   WorkerPool(this.sockets);
-  
+
   Future waitFor() {
     return Future.wait(sockets.map((it) => it.waitFor()).toList());
   }
-  
+
   Future stop() {
     return Future.wait(sockets.map((it) => it.stop()).toList());
   }
-  
+
   Future ping() {
     return Future.wait(sockets.map((it) => it.ping()).toList());
   }
-  
+
   void send(dynamic data) {
     forEach((socket) => socket.send(data));
   }
-  
+
   void listen(void handler(int worker, event)) {
     var i = 0;
     for (var worker in sockets) {
@@ -50,21 +50,21 @@ class WorkerPool {
       i++;
     }
   }
-  
+
   Future<WorkerPool> init() => Future.wait(sockets.map((it) => it.init()).toList()).then((_) => this);
-  
+
   void forEach(void handler(WorkerSocket socket)) {
     sockets.forEach(handler);
   }
-  
+
   void addMethod(String name, Producer handler) {
     forEach((socket) => socket.addMethod(name, handler));
   }
-  
+
   Future<List<dynamic>> callMethod(String name, [argument]) {
     return Future.wait(sockets.map((it) => it.callMethod(name, argument)).toList());
   }
-  
+
   WorkerSocket workerAt(int id) => sockets[id];
   WorkerSocket operator [](int id) => workerAt(id);
 }
@@ -80,7 +80,7 @@ class _WorkerRequest {
   final int id;
   final String name;
   final dynamic argument;
-  
+
   _WorkerRequest(this.id, this.name, this.argument);
 }
 
@@ -88,7 +88,7 @@ class _WorkerResponse {
   final int id;
   final String name;
   final dynamic value;
-  
+
   _WorkerResponse(this.id, this.name, this.value);
 }
 
@@ -104,7 +104,7 @@ class Worker {
   Worker(this.port);
 
   WorkerSocket createSocket() => new WorkerSocket.worker(port);
-  Future<WorkerSocket> init() => await createSocket().init();
+  Future<WorkerSocket> init() async => await createSocket().init();
 }
 
 class _WorkerSendPort {
@@ -132,7 +132,7 @@ class _WorkerStopped {}
 class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
   final ReceivePort receiver;
   SendPort _sendPort;
-  
+
   WorkerSocket.master(this.receiver) : isWorker = false {
     receiver.listen((msg) {
       if (msg is _WorkerSendPort) {
@@ -213,13 +213,13 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
       return _readyCompleter.future;
     }
   }
-  
+
   Future<WorkerSocket> init() => waitFor().then((_) => this);
-  
+
   void addMethod(String name, Producer producer) {
     _requestHandlers[name] = producer;
   }
-  
+
   Future callMethod(String name, [argument]) {
     var completer = new Completer();
     _responseHandlers[_reqId] = completer;
@@ -228,9 +228,9 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
     _reqId++;
     return completer.future;
   }
-  
+
   int _reqId = 0;
-  
+
   void _handleRequest(_WorkerRequest req) {
     if (_requestHandlers.containsKey(req.name)) {
       var val = _requestHandlers[req.name](req.argument);
@@ -241,7 +241,7 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
       throw new Exception("Invalid Method: ${req.name}");
     }
   }
-  
+
   Map<int, Completer> _responseHandlers = {};
   Map<String, Producer> _requestHandlers = {};
 
@@ -261,7 +261,7 @@ class WorkerSocket extends Stream<dynamic> implements StreamSink<dynamic> {
   void add(event) {
     _sendPort.send(new _WorkerData(event));
   }
-  
+
   void send(event) => add(event);
 
   @override

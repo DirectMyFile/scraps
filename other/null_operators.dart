@@ -7,6 +7,7 @@ import "package:analyzer/src/generated/scanner.dart";
 import "package:analyzer/src/generated/ast.dart";
 import "package:analyzer/src/error.dart";
 import "package:analyzer/src/generated/error.dart";
+import "package:analyzer/src/generated/java_core.dart";
 
 void main(List<String> args) {
   if (args.isEmpty) {
@@ -17,29 +18,69 @@ void main(List<String> args) {
   for (var path in args) {
     var file = new File(path);
     var cu = parseCompilationUnit(file.readAsStringSync());
-
-    cu = new NullOperatorVisitor().visitCompilationUnit(cu);
-    file.writeAsStringSync(cu.toSource());
+    var writer = new PrintStringWriter();
+    cu.accept(new NullOperatorVisitor(writer));
+    new File("${file.parent.path}/compiled_${new Uri.file(file.path).pathSegments.last}")
+      .writeAsStringSync(writer.toString());
   }
 }
 
-class NullOperatorVisitor extends AstCloner {
+class NullOperatorVisitor extends ToSourceVisitor {
+  PrintWriter writer;
+
+  NullOperatorVisitor(PrintWriter w) : super(w) {
+    writer = w;
+  }
+
   @override
   visitBinaryExpression(BinaryExpression node) {
     if (node.operator.type == TokenType.QUESTION_QUESTION) {
-      return new ConditionalExpression(
-        new BinaryExpression(
-          node.leftOperand,
-          new Token(TokenType.BANG_EQ, 0),
-          new NullLiteral(new Token(TokenType.KEYWORD, 0))
-        ),
-        new Token(TokenType.QUESTION, 0),
-        node.leftOperand,
-        new Token(TokenType.COLON, 0),
-        node.rightOperand
-      );
+      writer.print("__push__(");
+      node.leftOperand.accept(this);
+      writer.print(") != null ? __pop__() : __popm__(");
+      node.rightOperand.accept(this);
+      writer.print(")");
     } else {
-      return node;
+      super.visitBinaryExpression(node);
+    }
+  }
+
+  @override
+  visitCompilationUnit(CompilationUnit node) {
+    ScriptTag scriptTag = node.scriptTag;
+    NodeList<Directive> directives = node.directives;
+    _visitNode(scriptTag);
+    String prefix = scriptTag == null ? "" : " ";
+    _visitNodeListWithSeparatorAndPrefix(prefix, directives, " ");
+    prefix = scriptTag == null && directives.isEmpty ? "" : " ";
+    [
+      "var __stack__=[];",
+      "__push__(x){__stack__.add(x);return x;}",
+      "__pop__()=>__stack__.removeLast();",
+      "__popm__(x){__pop__();return x;}"
+    ].forEach(writer.print);
+    _visitNodeListWithSeparatorAndPrefix(prefix, node.declarations, " ");
+    return null;
+  }
+
+  void _visitNode(AstNode node) {
+    if (node != null) {
+      node.accept(this);
+    }
+  }
+
+  void _visitNodeListWithSeparatorAndPrefix(String prefix, NodeList<AstNode> nodes, String separator) {
+    if (nodes != null) {
+      int size = nodes.length;
+      if (size > 0) {
+        writer.print(prefix);
+        for (int i = 0; i < size; i++) {
+          if (i > 0) {
+            writer.print(separator);
+          }
+          nodes[i].accept(this);
+        }
+      }
     }
   }
 }
