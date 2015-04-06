@@ -46,6 +46,45 @@ class NullOperatorVisitor extends ToSourceVisitor {
   }
 
   @override
+  visitAssignmentExpression(AssignmentExpression node) {
+    if (node.operator.type == TokenType.QUESTION_QUESTION_EQ) {
+      _visitNode(node.leftHandSide);
+      writer.print(' ');
+      writer.print('=');
+      writer.print(' ');
+      writer.print("__push__(");
+      node.leftHandSide.accept(this);
+      writer.print(") != null ? __pop__() : __popm__(");
+      node.rightHandSide.accept(this);
+      writer.print(")");
+    } else {
+      _visitNode(node.leftHandSide);
+      writer.print(' ');
+      writer.print(node.operator.lexeme);
+      writer.print(' ');
+      _visitNode(node.rightHandSide);
+    }
+  }
+
+  @override
+  visitPropertyAccess(PropertyAccess node) {
+    if (node.isCascaded) {
+      writer.print("..");
+    } else {
+      if (node.operator.type == TokenType.QUESTION_PERIOD) {
+        writer.print("__push__(");
+        _visitNode(node.target);
+        writer.print(") != null ? __pop__() : ");
+        writer.print("__popm__(null).");
+      } else {
+        writer.print(node.operator.lexeme);
+      }
+    }
+    _visitNode(node.propertyName);
+    return null;
+  }
+
+  @override
   visitCompilationUnit(CompilationUnit node) {
     ScriptTag scriptTag = node.scriptTag;
     NodeList<Directive> directives = node.directives;
