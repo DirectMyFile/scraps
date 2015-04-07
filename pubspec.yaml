@@ -6,3 +6,4 @@ dependencies:
   analyzer: ">=0.24.1-alpha.0"
   petitparser: any
   parsejs: ">=1.0.3 <2.0.0"
+  google_maps: ">=2.0.7 <3.0.0"
