@@ -4,7 +4,7 @@ void main() {
 
 void say(String message) {
   print(message ?? "NULL");
-  m?.codeUnits;
+  print(m?.codeUnits);
   m ??= message;
 }
 
