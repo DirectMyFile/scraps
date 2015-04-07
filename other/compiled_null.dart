@@ -18,7 +18,7 @@ void main() {
 
 void say(String message) {
   print(__push__(message) != null ? __pop__() : __popm__("NULL"));
-  __push__(m) != null ? __pop__() : __popm__(null).codeUnits;
+  __push__(m) != null ? __pop__().codeUnits : __popm__(null);
   m = __push__(m) != null ? __pop__() : __popm__(message);
 }
 

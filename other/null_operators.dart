@@ -70,17 +70,22 @@ class NullOperatorVisitor extends ToSourceVisitor {
   visitPropertyAccess(PropertyAccess node) {
     if (node.isCascaded) {
       writer.print("..");
+      _visitNode(node.propertyName);
     } else {
       if (node.operator.type == TokenType.QUESTION_PERIOD) {
         writer.print("__push__(");
         _visitNode(node.target);
-        writer.print(") != null ? __pop__() : ");
-        writer.print("__popm__(null).");
+        writer.print(") != null ? __pop__()");
+        writer.print(".");
+        _visitNode(node.propertyName);
+        writer.print(" : ");
+        writer.print("__popm__(null)");
       } else {
+        _visitNode(node.target);
         writer.print(node.operator.lexeme);
+        _visitNode(node.propertyName);
       }
     }
-    _visitNode(node.propertyName);
     return null;
   }
 
