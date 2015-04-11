@@ -3,7 +3,7 @@ import "dart:convert";
 import "dart:io";
 import "package:path/path.dart" as pathlib;
 
-abstract class AnalysisConnection {
+abstract class AnalysisChannel {
   Future initialize();
   void send(Map<String, dynamic> json);
   Stream<Map<String, dynamic>> stream();
@@ -20,7 +20,7 @@ class AnalysisClientError {
   String toString() {
     var msg = "${message}\nError Code: ${code}";
     if (stacktrace != null) {
-      msg += "\n${stacktrace}";
+      msg += "\n\nServer Stacktrace:\n${stacktrace}";
     }
 
     return msg;
@@ -48,7 +48,7 @@ Future<String> getExecutablePath() async {
   return null;
 }
 
-class ProcessAnalysisConnection extends AnalysisConnection {
+class ProcessAnalysisChannel extends AnalysisChannel {
   Process _process;
 
   @override
@@ -60,7 +60,7 @@ class ProcessAnalysisConnection extends AnalysisConnection {
     var binDir = new File(exePath).parent;
     var snapshot = new File(pathlib.join(binDir.path, "snapshots", "analysis_server.dart.snapshot"));
     if (!(await snapshot.exists())) {
-      throw new Exception("Analysis Server Snapshot not Found! ${snapshot.path}");
+      throw new Exception("Analysis Server Snapshot not found! ${snapshot.path}");
     }
     _process = await Process.start(Platform.executable, [snapshot.path]);
   }
@@ -77,13 +77,13 @@ class ProcessAnalysisConnection extends AnalysisConnection {
 }
 
 class AnalysisClient {
-  final AnalysisConnection connection;
+  final AnalysisChannel channel;
 
-  AnalysisClient(this.connection);
+  AnalysisClient(this.channel);
 
   Future initialize() async {
-    await connection.initialize();
-    connection.stream().listen((json) {
+    await channel.initialize();
+    channel.stream().listen((json) {
       if (json.containsKey("error")) {
         var code = json["error"]["code"];
         var message = json["error"]["message"];
@@ -126,7 +126,7 @@ class AnalysisClient {
     _pending[rid] = completer;
     var json = request.toJSON();
     json["id"] = rid.toString();
-    connection.send(json);
+    channel.send(json);
     var m = await completer.future;
     return request.getResponse(m);
   }
@@ -154,8 +154,7 @@ class AnalysisClient {
     var id = (await send(new GetCompletionSuggestionsRequest(file, offset)) as GetCompletionSuggestionsResponse).id;
     var controller = new StreamController<CompletionResults>.broadcast();
     var sub;
-    sub = onEvent("completion.results").where((it) => it["id"] == id).map((it) => new CompletionResults.fromJSON(it)).listen((e) {
-      var x = new CompletionResults.fromJSON(e);
+    sub = onEvent("completion.results").where((it) => it["id"] == id).map((it) => new CompletionResults.fromJSON(it)).listen((x) {
       controller.add(x);
 
       if (x.isLast) {
@@ -526,25 +525,21 @@ class AnalysisErrorSeverity {
 }
 
 main() async {
-  var client = new AnalysisClient(new ProcessAnalysisConnection());
+  var client = new AnalysisClient(new ProcessAnalysisChannel());
   await client.initialize();
 
   var version = await client.getServerVersion();
   print("Server Version: ${version}");
 
-  var rscript = new File(Platform.script.toFilePath()).absolute;
-  var root = rscript.parent.parent;
-
-  client.onAnalysisErrors.listen((e) {
-    var errors = e.errors;
-    for (var error in errors) {
-      print("Analysis Error in ${e.file}");
-      print("- Type: ${error.type.name}");
-      print("- Severity: ${error.severity.name}");
-      print("- Location: ${error.location}");
-      print("- Message: ${error.message}");
-    }
-  });
+  var root = new Directory("/Users/alex/DirectCode/Atom");
 
   await client.setAnalysisRoots(included: [root.path]);
+
+  (await client.getCompletionSuggestions("${root.path}/test/badger.pkg.dart", 53)).listen((CompletionResults results) {
+    for (var r in results.results) {
+      print("${r.completion}");
+    }
+  }).onDone(() {
+    print("Completions Done");
+  });
 }
