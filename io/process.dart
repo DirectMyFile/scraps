@@ -104,7 +104,3 @@ Future<BetterProcessResult> exec(
     buff.toString()
   );
 }
-
-main() async {
-  await exec("cat", inherit: true);
-}
