@@ -39,9 +39,9 @@ Future<String> getExecutablePath() async {
     var pexe = new File("${path}/dart");
     var exe = new File("${path}/dart.exe");
     if (await pexe.exists()) {
-      return pexe.path;
+      return pexe.resolveSymbolicLinksSync();
     } else if (await exe.exists()) {
-      return exe.path;
+      return exe.resolveSymbolicLinksSync();
     }
   }
 
