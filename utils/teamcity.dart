@@ -1,6 +1,7 @@
 import "dart:async";
 import "dart:io";
 import "dart:convert";
+import "dart:math";
 
 enum MessageStatus {
   NORMAL, WARNING, FAILURE, ERROR
@@ -97,6 +98,9 @@ void writeJSONFile(String path, dynamic value) {
 }
 
 class TeamCity {
+  static num _flowId = new Random().nextDouble() * (1e10 - 1e6 + 1) + 1e6;
+  static bool autoFlowId = true;
+
   static String createServiceMessage(String name, value, {DateTime timestamp, String flowId}) {
     var out = new StringBuffer("##teamcity[${name}");
 
@@ -117,7 +121,11 @@ class TeamCity {
       }
     }
 
-    if (flowId != null) {
+    if (flowId != null || autoFlowId) {
+      if (flowId == null) {
+        flowId = _flowId.toString();
+      }
+
       if (value is Map) {
         var m = new Map.from(value);
         m["flowId"] = flowId;
@@ -138,27 +146,42 @@ class TeamCity {
       }
 
       for (var i = 0; i < keys.length; i++) {
-        out.write("${keys[i]}='${_escapeValue(value[i])}'");
+        out.write("${keys[i]}='${_escapeValue(value[i].toString())}'");
         if (i != keys.length - 1) {
           out.write(" ");
         }
       }
     } else {
-      out.write(" '${_escapeValue(value)}'");
+      out.write(" '${_escapeValue(value.toString())}'");
     }
     out.write("]");
 
     return out.toString();
   }
 
+  static final RegExp _replacer = new RegExp(r"'\n\r\|\[\]\u0100-\uffff]");
+  static final RegExp _unicode = new RegExp(r"[^\u0000-\u00ff]");
+
+  static final Map<String, String> _escapeMap = {
+    "'": "|'",
+    "|": "||",
+    "\n": "|n",
+    "\r": "|r",
+    "[": "|[",
+    "]": "|]"
+  };
+
   static String _escapeValue(String value) {
-    return value
-      .replaceAll("'", "|'")
-      .replaceAll("\n", "|n")
-      .replaceAll("\r", "|r")
-      .replaceAll("|", "||")
-      .replaceAll("[", "|[")
-      .replaceAll("]", "|]");
+    return value.replaceAllMapped(_replacer, (match) {
+      var l = match.group(0);
+      if (_escapeMap.containsKey(l)) {
+        return _escapeMap[l];
+      } else if (_unicode.hasMatch(l)) {
+        return "|0x" + l.codeUnitAt(0).toRadixString(16).padLeft(4, "0");
+      } else {
+        return "";
+      }
+    });
   }
 
   static void writeServiceMessage(String name, [value]) {
@@ -226,11 +249,85 @@ class TeamCity {
     writeServiceMessage("progressMessage", message);
   }
 
-  static void beginProgress(String message) {
+  static void testSuiteStarted(String name) {
+    writeServiceMessage("testSuiteStarted", {
+      "name": name
+    });
+  }
+
+  static void testSuiteFinished(String name) {
+    writeServiceMessage("testSuiteFinished", {
+      "name": name
+    });
+  }
+
+  static void testStarted(String name, {bool captureStandardOutput: false}) {
+    writeServiceMessage("testStarted", {
+      "name": name,
+      "catureStandardOutput": captureStandardOutput
+    });
+  }
+
+  static void testFinished(String name, {int duration}) {
+    var map = {
+      "name": name
+    };
+
+    if (duration != null) {
+      map["duration"] = duration;
+    }
+
+    writeServiceMessage("testFinished", map);
+  }
+
+  static void testIgnored(String name, String message) {
+    writeServiceMessage("testIgnored", {
+      "name": name,
+      "message": message
+    });
+  }
+
+  static void testFailed(String name, String message, String details, {String type, String expected, String actual}) {
+    var map = {
+      "name": name,
+      "message": message,
+      "details": details
+    };
+
+    if (type != null) {
+      map["type"] = type;
+    }
+
+    if (expected != null) {
+      map["expected"] = expected;
+    }
+
+    if (actual != null) {
+      map["actual"] = actual;
+    }
+
+    writeServiceMessage("testFailed", map);
+  }
+
+  static void testStdOut(String name, String out) {
+    writeServiceMessage("testStdOut", {
+      "name": name,
+      "out": out
+    });
+  }
+
+  static void testStdErr(String name, String out) {
+    writeServiceMessage("testStdErr", {
+      "name": name,
+      "out": out
+    });
+  }
+
+  static void progressStart(String message) {
     writeServiceMessage("progressStart", message);
   }
 
-  static void endProgress(String message) {
+  static void progressFinish(String message) {
     writeServiceMessage("progressFinish", message);
   }
 
@@ -307,17 +404,17 @@ class BetterProcessResult extends ProcessResult {
 Future<BetterProcessResult> exec(
   String executable,
   {
-  List<String> args: const [],
-  String workingDirectory,
-  Map<String, String> environment,
-  bool includeParentEnvironment: true,
-  bool runInShell: false,
-  stdin,
-  ProcessHandler handler,
-  OutputHandler stdoutHandler,
-  OutputHandler stderrHandler,
-  OutputHandler outputHandler,
-  bool inherit: false
+    List<String> args: const [],
+    String workingDirectory,
+    Map<String, String> environment,
+    bool includeParentEnvironment: true,
+    bool runInShell: false,
+    stdin,
+    ProcessHandler handler,
+    OutputHandler stdoutHandler,
+    OutputHandler stderrHandler,
+    OutputHandler outputHandler,
+    bool inherit: false
   }) async {
   Process process = await Process.start(
     executable,
