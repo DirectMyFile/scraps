@@ -491,3 +491,74 @@ Future<BetterProcessResult> exec(
     buff.toString()
   );
 }
+
+class HTTP {
+  static HttpClient client = new HttpClient();
+
+  static Future<String> getString(String url) {
+    return client.getUrl(Uri.parse(url)).then((request) {
+      return request.close();
+    }).then((response) {
+      var data = response.transform(UTF8.decoder).join();
+      new Future(() {
+        client.close();
+        client = new HttpClient();
+      });
+      return data;
+    });
+  }
+
+  static Future<File> downloadFile(String url, File file) {
+    return client.getUrl(Uri.parse(url)).then((request) {
+      return request.close();
+    }).then((response) {
+      var p = response.pipe(file.openWrite());
+      new Future(() {
+        client.close();
+        client = new HttpClient();
+      });
+      return p;
+    }).then((_) {
+      return file;
+    });
+  }
+}
+
+Future block(String name, action()) {
+  var tcBlock = TeamCity.openBlock(name);
+  var r = action();
+  if (r is Future) {
+    return r.then((_) {
+      tcBlock.close();
+    });
+  } else {
+    tcBlock.close();
+    return new Future.value();
+  }
+}
+
+Future<BetterProcessResult> executeCommand(String command) {
+  var split = command.split(" ");
+  var exe = split[0];
+  var a = split.skip(1).toList();
+  return exec(exe, args: a, inherit: true);
+}
+
+Map<String, String> get env => Platform.environment;
+
+String fromEnvironment(String key, [String defaultValue]) {
+  var value = env[key];
+  if (value == null) {
+    value = defaultValue;
+  }
+  return value;
+}
+
+Future script(String path, [List<String> args]) {
+  var argz = args != null ? " ${args.join(' ')}" : "";
+  return executeCommand("dart ${path}${argz}");
+}
+
+Future pub(String args) {
+  return executeCommand("pub ${args}");
+}
