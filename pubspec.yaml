@@ -9,3 +9,5 @@ dependencies:
   google_maps: ">=2.0.7 <3.0.0"
   args: any
   jsonx: any
+  binary_interop: any
+  binary_marshalling: any

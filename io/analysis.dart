@@ -118,6 +118,9 @@ class AnalysisClient {
   Stream<AnalysisErrorsNotification> get onAnalysisErrors => onEvent("analysis.errors")
     .map((it) => new AnalysisErrorsNotification.fromJSON(it));
 
+  Stream<AnalysisStatus> get onServerStatus => onEvent("server.status")
+    .map((it) => new ServerStatus.fromJSON(it));
+
   Map<String, StreamController> _events = {};
 
   Future<AnalysisResponse> send(AnalysisRequest request) async {
@@ -133,6 +136,10 @@ class AnalysisClient {
 
   Future setAnalysisRoots({List<String> included: const [], List<String> excluded: const [], Map<String, String> packageRoots}) {
     return send(new SetAnalysisRootsRequest(included, excluded, packageRoots));
+  }
+
+  Future setServerSubscriptions(List<String> subs) {
+    return send(new SetServerSubscriptionsRequest(subs));
   }
 
   Future shutdown() {
@@ -168,6 +175,62 @@ class AnalysisClient {
   int _rid = 0;
   int _getRequestId() => ++_rid;
   Map<int, Completer> _pending = {};
+}
+
+class AnalysisStatus {
+  final bool isAnalyzing;
+  final String analysisTarget;
+
+  AnalysisStatus(this.isAnalyzing, this.analysisTarget);
+
+  factory AnalysisStatus.fromJSON(Map<String, dynamic> json) {
+    if (json == null) {
+      return null;
+    }
+    return new AnalysisStatus(json["isAnalyzing"], json["analysisTarget"]);
+  }
+}
+
+class PubStatus {
+  final bool isListingPackageDirs;
+
+  PubStatus(this.isListingPackageDirs);
+
+  factory PubStatus.fromJSON(Map<String, dynamic> json) {
+    if (json == null) {
+      return null;
+    }
+    return new PubStatus(json["isListingPackageDirs"]);
+  }
+}
+
+class ServerStatus {
+  final PubStatus pub;
+  final AnalysisStatus analysis;
+
+  ServerStatus(this.pub, this.analysis);
+
+  factory ServerStatus.fromJSON(Map<String, dynamic> json) {
+    return new ServerStatus(new PubStatus.fromJSON(json["pub"]), new AnalysisStatus.fromJSON(json["analysis"]));
+  }
+}
+
+class SetServerSubscriptionsRequest extends AnalysisRequest {
+  final List<String> subscriptions;
+
+  SetServerSubscriptionsRequest(this.subscriptions);
+
+  @override
+  AnalysisResponse getResponse(Map<String, dynamic> result) =>
+    new EmptyResponse();
+
+  @override
+  Map<String, dynamic> toJSON() => {
+    "method": "server.setSubscriptions",
+    "params": {
+      "subscriptions": subscriptions
+    }
+  };
 }
 
 class GetCompletionSuggestionsResponse extends AnalysisResponse {
@@ -241,6 +304,51 @@ class CompletionResults {
     var l = json["isLast"];
 
     return new CompletionResults(i, ro, rl, res, l);
+  }
+}
+
+class ServerService {
+  static const String STATUS = "STATUS";
+}
+
+class SourceEdit {
+  final int offset;
+  final int length;
+  final String replacement;
+  final String id;
+
+  SourceEdit(this.offset, this.length, this.replacement, this.id);
+
+  factory SourceEdit.fromJSON(Map<String, dynamic> json) {
+    return new SourceEdit(json["offset"], json["length"], json["replacement"], json["id"]);
+  }
+
+  String apply(String input) {
+    var a = input.substring(0, offset);
+    var b = input.substring(offset + length);
+    return a + replacement + b;
+  }
+}
+
+class SourceFileEdit {
+  final String file;
+  final int fileStamp;
+  final List<SourceEdit> edits;
+
+  SourceFileEdit(this.file, this.fileStamp, this.edits);
+
+  factory SourceFileEdit.fromJSON(Map<String, dynamic> json) {
+    return new SourceFileEdit(json["file"], json["fileStamp"], json["edits"]
+      .map((it) => new SourceEdit.fromJSON(it)).toList()
+    );
+  }
+
+  String apply(String content) {
+    for (var edit in edits) {
+      content = edit.apply(content);
+    }
+
+    return content;
   }
 }
 
