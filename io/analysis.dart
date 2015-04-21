@@ -20,7 +20,7 @@ class AnalysisClientError {
   String toString() {
     var msg = "${message}\nError Code: ${code}";
     if (stacktrace != null) {
-      msg += "\n\nServer Stacktrace:\n${stacktrace}";
+      msg += "\n\nServer Stack Trace:\n${stacktrace}";
     }
 
     return msg;
@@ -632,22 +632,32 @@ class AnalysisErrorSeverity {
   static AnalysisErrorSeverity forName(String name) => values.firstWhere((it) => it.name == name);
 }
 
-main() async {
+main(List<String> args) async {
+  if (args.length != 1) {
+    print("Usage: analysis <project>");
+    exit(1);
+  }
+
   var client = new AnalysisClient(new ProcessAnalysisChannel());
+
   await client.initialize();
 
   var version = await client.getServerVersion();
+
   print("Server Version: ${version}");
 
-  var root = new Directory("/Users/alex/DirectCode/Atom");
+  var root = new Directory(args[0]);
 
   await client.setAnalysisRoots(included: [root.path]);
 
-  (await client.getCompletionSuggestions("${root.path}/test/badger.pkg.dart", 53)).listen((CompletionResults results) {
-    for (var r in results.results) {
-      print("${r.completion}");
+  client.onAnalysisErrors.listen((AnalysisErrorsNotification e) {
+    if (e.errors.isEmpty) return;
+
+    print("In file ${e.file}:");
+    for (var error in e.errors) {
+      print("- at ${error.location.startLine}:${error.location.startColumn}");
+      print("  - Type: ${error.type.name}");
+      print("  - Message: ${error.message}");
     }
-  }).onDone(() {
-    print("Completions Done");
   });
 }
