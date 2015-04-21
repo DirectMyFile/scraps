@@ -658,6 +658,9 @@ main(List<String> args) async {
       print("- at ${error.location.startLine}:${error.location.startColumn}");
       print("  - Type: ${error.type.name}");
       print("  - Message: ${error.message}");
+      if (error.correction != null) {
+        print("  - Correction: ${error.correction}");
+      }
     }
   });
 }
