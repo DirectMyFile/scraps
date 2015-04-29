@@ -81,9 +81,19 @@ class AnalysisClient {
 
   AnalysisClient(this.channel);
 
+  StreamController<dynamic> _dataReceivedController = new StreamController<dynamic>();
+  StreamController<dynamic> _dataSentController = new StreamController<dynamic>();
+  Stream<dynamic> get onDataReceived => _dataReceivedController.stream;
+  Stream<dynamic> get onDataSent => _dataSentController.stream;
+
+  String _serverVersion;
+  String get serverVersion => _serverVersion;
+
   Future initialize() async {
     await channel.initialize();
     channel.stream().listen((json) {
+      _dataReceivedController.add(json);
+
       if (json.containsKey("error")) {
         var code = json["error"]["code"];
         var message = json["error"]["message"];
@@ -104,7 +114,9 @@ class AnalysisClient {
       }
     });
 
-    return await onEvent("server.connected").first;
+    return await onEvent("server.connected").first.then((json) {
+      _serverVersion = json["version"];
+    });
   }
 
   Stream<Map<String, dynamic>> onEvent(String name) {
@@ -130,6 +142,7 @@ class AnalysisClient {
     var json = request.toJSON();
     json["id"] = rid.toString();
     channel.send(json);
+    _dataSentController.add(json);
     var m = await completer.future;
     return request.getResponse(m);
   }
@@ -633,20 +646,29 @@ class AnalysisErrorSeverity {
 }
 
 main(List<String> args) async {
-  if (args.length != 1) {
+  var stuffs = args.where((it) => !it.startsWith("-")).toList();
+  if (stuffs.length != 1) {
     print("Usage: analysis <project>");
     exit(1);
   }
 
   var client = new AnalysisClient(new ProcessAnalysisChannel());
 
+  if (args.contains("-d")) {
+    client.onDataSent.listen((json) {
+      print("Sent: ${json}");
+    });
+
+    client.onDataReceived.listen((json) {
+      print("Received: ${json}");
+    });
+  }
+
   await client.initialize();
 
-  var version = await client.getServerVersion();
+  print("Server Version: ${client.serverVersion}");
 
-  print("Server Version: ${version}");
-
-  var root = new Directory(args[0]);
+  var root = new Directory(stuffs[0]);
 
   await client.setAnalysisRoots(included: [root.path]);
 
@@ -661,6 +683,52 @@ main(List<String> args) async {
       if (error.correction != null) {
         print("  - Correction: ${error.correction}");
       }
+    }
+  });
+
+  stdin.transform(UTF8.decoder).transform(new LineSplitter()).listen((String line) async {
+    line = line.trim();
+
+    if (line.isEmpty) return;
+
+    var split = line.split(" ");
+    var cmd = split[0];
+    var args = split.skip(1).toList();
+
+    if (cmd == "server-version") {
+      print("Server Version: ${await client.getServerVersion()}");
+    } else if (cmd == "set-server-subs") {
+      await client.setServerSubscriptions(args);
+      print("Subscriptions Set.");
+    } else if (cmd == "set-priority-files") {
+      await client.setPriorityFiles(args);
+      print("Priority Files Set.");
+    } else if (cmd == "set-roots") {
+      var include = args.where((it) => !it.startsWith("-") && it.contains(":")).toList();
+      var exclude = args.where((it) => it.startsWith("-") && it.contains(":")).toList();
+      var kv = args.where((it) => it.contains(":")).toList();
+      var pr = {};
+
+      for (var x in kv) {
+        var parts = x.split(":");
+        pr[parts[0]] = parts.skip(1).join(":");
+      }
+
+      if (include.isEmpty) {
+        include = null;
+      }
+
+      if (exclude.isEmpty) {
+        exclude = null;
+      }
+
+      if (pr.isEmpty) {
+        pr = null;
+      }
+      await client.setAnalysisRoots(included: include, excluded: exclude, packageRoots: pr);
+      print("Analysis Roots Set.");
+    } else {
+      print("Unknown Command: ${cmd}");
     }
   });
 }

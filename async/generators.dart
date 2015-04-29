@@ -29,7 +29,7 @@ main() async {
     print(i);
   }
 
-  print("= 5-10 Inclusive with step of 2");
+  print("= 5-10 Inclusive with step of 2 =");
   await for (var i in range(5, 10, step: 2)) {
     print(i);
   }
