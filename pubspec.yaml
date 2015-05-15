@@ -3,7 +3,6 @@ description: Random Code
 dependencies:
   image: 1.1.24
   http: any
-  analyzer: ">=0.24.1-alpha.0"
   petitparser: any
   parsejs: ">=1.0.3 <2.0.0"
   google_maps: ">=2.0.7 <3.0.0"
@@ -11,3 +10,5 @@ dependencies:
   jsonx: any
   binary_interop: any
   binary_marshalling: any
+  redstone_mapper: ">=0.1.13 <0.2.0"
+  fixnum: any
