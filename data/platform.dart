@@ -29,4 +29,14 @@ abstract class PlatformAdapter {
 
   String encodeUriComponent(String input);
   String decodeUriComponent(String input);
+
+  void createWebSocket(String url, void handler(WebSocket socket), {List<String> protocols});
+}
+
+/// A WebSocket API
+abstract class WebSocket {
+  void close({int code, String reason, void callback()});
+  void send(dynamic message);
+  void onMessage(void callback(dynamic message));
+  void onClose(void callback(int code, String reason));
 }
