@@ -19,7 +19,7 @@ class DotMap<K, V> extends MapDecorator<K, V> {
         return this[name.substring(0, name.length - 1)] = invocation.positionalArguments[0];
       }
     } else {
-      return noSuchMethod(invocation);
+      return super.noSuchMethod(invocation);
     }
   }
 }
